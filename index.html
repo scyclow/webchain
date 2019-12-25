@@ -6,116 +6,220 @@
 
   </head>
   <body>
-    webchain
+
+    <div id="chat-history">
+      <h2>Chat history</h2>
+      <div id="chat-history-results"></div>
+      <input id="new-message"></body>
+      <button>Send</button>
+    </div>
+
+
+    <div id="new-connection">
+      <button id="create-offering">Create Offering</button>
+      <button id="accept-offering">Accept Offering</button>
+
+
+      <div id="offering" style="display: none;">
+        <h3>Offering:</h3>
+        <pre id="offering-out"></pre>
+
+        <h3>Candidate:</h3>
+        <pre id="offering-candidate-out"></pre>
+
+        <h3>Remote Answer:</h3>
+        <textarea id="answer-in"></textarea>
+
+        <h3>Remote Candidate:</h3>
+        <textarea id="answer-candidate-in"></textarea>
+
+        <button id="accept-answer">Accept Answer</button>
+      </div>
+
+
+
+      <div id="answer" style="display: none;">
+        <h3>Offering input:</h3>
+        <textarea id="offering-in"></textarea>
+
+        <h3>Candidate input:</h3>
+        <textarea id="offering-candidate-in"></textarea>
+
+        <button id="create-answer">Accept</button>
+        <h3>Answer:</h3>
+        <pre id="answer-out"></pre>
+
+        <h3>Candidate:</h3>
+        <pre id="answer-candidate-out"></pre>
+      </div>
+
+    </div>
+
+
+
+
   </body>
   <script type="text/javascript">
 
-    // CONNECTION A
-    const connectionA = new RTCPeerConnection()
+    const $offering = document.getElementById('offering')
+    const $answer = document.getElementById('answer')
 
-    // Set A handlers
-    connectionA.onicecandidate = e => {
-      // This is called once connection A's local description is set
-      if (e.candidate) {
-        const descriptionPayload = jsonify(connectionA.localDescription)
-        const candidatePayload = jsonify(e.candidate)
+    const $createOffering = document.getElementById('create-offering')
+    const $acceptOffering = document.getElementById('accept-offering')
 
-        connectionA.descriptionPayload = descriptionPayload
-        connectionA.candidatePayload = candidatePayload
+    const $offeringOut = document.getElementById('offering-out')
+    const $offeringCandidateOut = document.getElementById('offering-candidate-out')
 
-        setupRemoteConnection(descriptionPayload, candidatePayload)
+    const $answerIn = document.getElementById('answer-in')
+    const $answerCandidateIn = document.getElementById('answer-candidate-in')
+
+    const $offeringIn = document.getElementById('offering-in')
+    const $offeringCandidateIn = document.getElementById('offering-candidate-in')
+    const $answerOut = document.getElementById('answer-out')
+    const $answerCandidateOut = document.getElementById('answer-candidate-out')
+    const $createAnswer = document.getElementById('create-answer')
+    const $acceptAnswer = document.getElementById('accept-answer')
+
+
+
+    const localConnections = []
+    const remoteConnections = []
+    let localChannel;
+    let remoteChannel;
+
+    $createOffering.onclick = () => {
+      $offering.style.display = ''
+      createOffering()
+    }
+
+    $acceptOffering.onclick = () => {
+      $answer.style.display = ''
+    }
+
+
+    $createAnswer.onclick = () => {
+      acceptOffering(
+        JSON.parse($offeringIn.value),
+        JSON.parse($offeringCandidateIn.value),
+      )
+    }
+
+    $acceptAnswer.onclick = () => {
+      acceptAnswer(
+        localConnections[0],
+        JSON.parse($answerIn.value),
+        JSON.parse($answerCandidateIn.value),
+      )
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+    function createOffering() {
+      const connection = new RTCPeerConnection()
+      localConnections.push(connection)
+
+      connection.onconnectionstatechange = () => {
+        console.log("local connection state change:", connection.connectionState)
       }
-    }
 
-    const channelA = connectionA.createDataChannel('stuff')
-    channelA.onmessage = (evt) => console.log("A onmessage:", evt.data)
-
-    // This process technically happens on A's device
-    function acceptRemoteConnection(connectionDescription, candidate) {
-      // this happens on device A
-      connectionA.setRemoteDescription(connectionDescription)
-      connectionA.addIceCandidate(candidate)
-        .then(() => console.log('add candidate to connection A', candidate))
-        .catch(console.log);
-    }
-
-
-
-    /////////////////
-    // CONNECTION B
-    const connectionB = new RTCPeerConnection()
-
-    // Set B handlers
-    connectionB.onicecandidate = e => {
-      if (e.candidate) {
-        const descriptionPayload = jsonify(connectionB.localDescription)
-        const candidatePayload = jsonify(e.candidate)
-
-        connectionB.descriptionPayload = descriptionPayload
-        connectionB.candidatePayload = candidatePayload
-
-        acceptRemoteConnection(descriptionPayload, candidatePayload)
+      connection.onicecandidate = e => {
+        console.log("local candidate created")
+        if (e.candidate) {
+          displayRemoteOfferingInfo(connection.localDescription, e.candidate)
+        }
       }
+
+
+      localChannel = connection.createDataChannel('chat')
+      localChannel.onmessage = evt => updateChat("Local: " + evt.data)
+
+
+      console.log("creating offering")
+      connection.createOffer()
+        .then(offer => connection.setLocalDescription(offer))
+        .catch(console.log)
     }
 
-    let channelB
-    connectionB.ondatachannel = e => {
-      console.log('connectionB ondatachannel')
-      channelB = e.channel
-      e.channel.onmessage = (evt) => console.log("B onmessage:", evt.data)
+    function displayRemoteOfferingInfo(description, candidate) {
+      $offeringOut.innerHTML = JSON.stringify(description, null, 3)
+      $offeringCandidateOut.innerHTML = JSON.stringify(candidate, null, 3)
+    }
+
+    function updateChat(msg) {
+      console.log(msg)
     }
 
 
-    // This process technically happens on B's device
-    function setupRemoteConnection(connectionDescription, candidate) {
-      // configure the remote end of connection B
-      connectionB.setRemoteDescription(connectionDescription)
-      connectionB.addIceCandidate(candidate)
-        .then(() => console.log('add candidate to connectionB', candidate))
+
+
+
+
+
+    function acceptOffering(offering, candidate) {
+      const connection = new RTCPeerConnection()
+      remoteConnections.push(connection)
+
+      connection.onconnectionstatechange = () => {
+        console.log("remote connection state change:", connection.connectionState)
+      }
+
+      connection.onicecandidate = e => {
+        console.log("remote candidate created")
+        if (e.candidate) {
+          displayRemoteAnswerInfo(connection.localDescription, e.candidate)
+        }
+      }
+
+      connection.ondatachannel = e => {
+        console.log('remote ondatachannel')
+        remoteChannel = e.channel
+        remoteChannel.onmessage = evt => updateChat("Remote: " + evt.data)
+      }
+
+      connection.setRemoteDescription(offering)
+      connection.addIceCandidate(candidate).catch(console.log);
+
+      connection.createAnswer()
+        .then(answer => connection.setLocalDescription(answer))
+    }
+
+    function displayRemoteAnswerInfo(answer, candidate) {
+        $answerOut.innerHTML = JSON.stringify(answer, null, 3)
+        $answerCandidateOut.innerHTML = JSON.stringify(candidate, null, 3)
+    }
+
+
+    function acceptAnswer(connection, answer, candidate) {
+      connection.setRemoteDescription(answer)
+      connection.addIceCandidate(candidate)
+        .then(() => console.log("answer accepted"))
         .catch(console.log);
 
-      connectionB.createAnswer()
-        .then(answer => connectionB.setLocalDescription(answer))
-
     }
 
 
+    // // The events play out in this order
+    //   // create A and B + handler setup
+    //   // A creates a data channel
+    //   // A creates a connection offering. This configures the connection.
+    //   // A sets the offering as its local description (which triggers the icecandidate event).
+    //   // A sends the offering + its candidate info to B
 
-    // Kick it all off
-    connectionA.createOffer()
-      // then configure the local end of connection A
-      .then(offer => connectionA.setLocalDescription(offer))
-      .catch(console.log)
+    //   // B sets A's offering as it's remote description
+    //   // B add's A as an ICE candidate
+    //   // B creates an answer, and sets that to its local description
+    //   // B sends its answer + candidate info back to A
 
-
-    // Now we can send messages back and forth
-    setTimeout(() => {
-      channelA.send("hello, this is A")
-      channelB.send("hello, this is B")
-    }, 2000)
-
-
-
-    // The events play out in this order
-      // create A and B + handler setup
-      // A creates a data channel
-      // A creates a connection offering. This configures the connection.
-      // A sets the offering as its local description (which triggers the icecandidate event).
-      // A sends the offering + its candidate info to B
-
-      // B sets A's offering as it's remote description
-      // B add's A as an ICE candidate
-      // B creates an answer, and sets that to its local description
-      // B sends its answer + candidate info back to A
-
-      // A sets the answer as its remote description
-      // A adds B as an ICE candidate
-
-
-
-
-    function jsonify(x) {
-      return JSON.parse(JSON.stringify(x))
-    }
+    //   // A sets the answer as its remote description
+    //   // A adds B as an ICE candidate
   </script>
 </html>

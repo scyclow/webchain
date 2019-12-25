@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Webchain</title>
+
+  </head>
+  <body>
+    webchain
+  </body>
+  <script type="text/javascript">
+
+    // CONNECTION A
+    const connectionA = new RTCPeerConnection()
+
+    // Set A handlers
+    connectionA.onicecandidate = e => {
+      // This is called once connection A's local description is set
+      if (e.candidate) {
+        const descriptionPayload = jsonify(connectionA.localDescription)
+        const candidatePayload = jsonify(e.candidate)
+
+        connectionA.descriptionPayload = descriptionPayload
+        connectionA.candidatePayload = candidatePayload
+
+        setupRemoteConnection(descriptionPayload, candidatePayload)
+      }
+    }
+
+    const channelA = connectionA.createDataChannel('stuff')
+    channelA.onmessage = (evt) => console.log("A onmessage:", evt.data)
+
+    // This process technically happens on A's device
+    function acceptRemoteConnection(connectionDescription, candidate) {
+      // this happens on device A
+      connectionA.setRemoteDescription(connectionDescription)
+      connectionA.addIceCandidate(candidate)
+        .then(() => console.log('add candidate to connection A', candidate))
+        .catch(console.log);
+    }
+
+
+
+    /////////////////
+    // CONNECTION B
+    const connectionB = new RTCPeerConnection()
+
+    // Set B handlers
+    connectionB.onicecandidate = e => {
+      if (e.candidate) {
+        const descriptionPayload = jsonify(connectionB.localDescription)
+        const candidatePayload = jsonify(e.candidate)
+
+        connectionB.descriptionPayload = descriptionPayload
+        connectionB.candidatePayload = candidatePayload
+
+        acceptRemoteConnection(descriptionPayload, candidatePayload)
+      }
+    }
+
+    let channelB
+    connectionB.ondatachannel = e => {
+      console.log('connectionB ondatachannel')
+      channelB = e.channel
+      e.channel.onmessage = (evt) => console.log("B onmessage:", evt.data)
+    }
+
+
+    // This process technically happens on B's device
+    function setupRemoteConnection(connectionDescription, candidate) {
+      // configure the remote end of connection B
+      connectionB.setRemoteDescription(connectionDescription)
+      connectionB.addIceCandidate(candidate)
+        .then(() => console.log('add candidate to connectionB', candidate))
+        .catch(console.log);
+
+      connectionB.createAnswer()
+        .then(answer => connectionB.setLocalDescription(answer))
+
+    }
+
+
+
+    // Kick it all off
+    connectionA.createOffer()
+      // then configure the local end of connection A
+      .then(offer => connectionA.setLocalDescription(offer))
+      .catch(console.log)
+
+
+    // Now we can send messages back and forth
+    setTimeout(() => {
+      channelA.send("hello, this is A")
+      channelB.send("hello, this is B")
+    }, 2000)
+
+
+
+    // The events play out in this order
+      // create A and B + handler setup
+      // A creates a data channel
+      // A creates a connection offering. This configures the connection.
+      // A sets the offering as its local description (which triggers the icecandidate event).
+      // A sends the offering + its candidate info to B
+
+      // B sets A's offering as it's remote description
+      // B add's A as an ICE candidate
+      // B creates an answer, and sets that to its local description
+      // B sends its answer + candidate info back to A
+
+      // A sets the answer as its remote description
+      // A adds B as an ICE candidate
+
+
+
+
+    function jsonify(x) {
+      return JSON.parse(JSON.stringify(x))
+    }
+  </script>
+</html>

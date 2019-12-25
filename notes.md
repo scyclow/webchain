@@ -11,6 +11,10 @@ Caveats
   To be really precise and pedantic, we will build a network of web browsers (nodes) that agree on the order of events, such that only we have 3f+1 honest nods
 
 
+Output
+  Let's create a blockchain chat application where, for some reason, you really really care about the integrety of your chat history. So, you don't want facebook or google, or one of the chat participants to rewrite history. Additionally, for some reason, you really really care that everyone int he chat agrees on the order of the messages, and no one can mess it up. So basically, we're building a chat app that's super fucking air tight against the attack where someone says something to piss you off, you respond, then they delete their original message and you look like a crazy person.
+
+
 WebRTC
   WebRTC sounds really fucking cool. Here are the descriptions of two components;
   https://www.html5rocks.com/en/tutorials/webrtc/basics/#toc-rtcdatachannel
