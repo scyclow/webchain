@@ -169,3 +169,5 @@ function acceptAnswer(connection, answer, candidate) {
 
 //   // A sets the answer as its remote description
 //   // A adds B as an ICE candidate
+
+//   // A and B are now able to message each other over the "chat" channel

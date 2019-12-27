@@ -1,12 +1,36 @@
 Building a blockchain in the browser with WebRTC
 
+
+
+My Tight 15:
+  - 2 min
+    - Blockchains are terrbile. a BC can be considered the world's slowest, most expensive, least efficient computer. So far, the main practical applications we've seen for public BCs have been buying drugs, allowing douchy tech bros to make a lot of money on pyramid schemes, and allowing douchy tech bros to lose a lot of money on pyramid schemes
+    - Blockchains are awesome. They got popular for a reason. the idea that anyone in the world can join this decentralized, trustless network and all agree on the state of the world is really cool and revolutionary. And even if we're not quite there yet in the public BC space, there are real world application for enterprise private networks, where ~ 4-50 entities who don't trust each other, but need to coordinate: supply chain management, asset reconciliation, health care data
+    - WebRTC is awesome. before i worked in blockchain, i was a web developer, and made a lot of stupid projects in my free time. i always thought setting up central servers was a drag, so when i heard that you could use webrtc to send audio, video, text in p2p communication, i thought that was really cool.
+  - 3 min
+    - So, let's build a blockchain with WebRTC, because why the hell not?
+    - But first, what exactly is a blockchain?
+      - MW actually has a definition: "a digital database containing information ... that can be simultaneously used and shared within a large decentralized, publicly accessible network"
+      - Actually isn't a terrible deifnition, but if that sounds vague as hell, it's because it is vague as hell. No one can actually agree on a definition that's more specific than this.
+      - IMO there are some definitive traits of blockchains that this definition leaves out (such as BFT, tx ordering)
+      - So for the purposes of this demo, and because i have the mic, we're going to define a blockchain as: a network of nodes (web browsers) with BFT that can come to a consensus on the order of events
+      - the digital db part is really a result of agreeing on txs and their order
+      - if you're curious where the blocks or the chains come in, then that's a valid concern, but don't worry about it for now
+
+    - Caveats:
+      - Depending on your definition of blockchain, what i built might not actually be one. But "Building a Decentralized Ledger with WebRTC" doesn't quit sound as sexy, so we're gonna roll with this
+      - I'm not an expert on WebRTC. This project is literally the extent of my knowledge
+      - I work at a company that built its own blockchain, but spend most of my time on the smart contract layer
+      - Blockchains are really really complicated, so I had to cut a lot of corners to get something I could explain in 15 minutes
+
+
 Why?
   Blockchains are fucking cool
   WebRTC is fucking cool
 
 Caveats
   No practical use for this
-  I'm not an expert on WebRTC. This project is literally the extent of my knowledge
+  I'm not an expert on WebRTC.
   some people might not actually consider this a blockchain. At very least a DLT. illustrates the architecture; can swap out the network layer for something more blockchainy
   To be really precise and pedantic, we will build a network of web browsers (nodes) that agree on the order of events, such that only we have 3f+1 honest nods
 

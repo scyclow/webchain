@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Webchain</title>
+
+  </head>
+  <body>
+
+    <div id="chat-history">
+      <h2>Chat history</h2>
+      <div id="chat-history-results"></div>
+      <input id="new-message"></body>
+      <button id="send-message">Send</button>
+    </div>
+
+
+    <div id="new-connection">
+      <button id="create-invitation">Create Invitation</button>
+      <button id="accept-invitation">Accept Invitation</button>
+
+
+      <div id="invitation" style="display: none;">
+        <h3>Invitation:</h3>
+        <textarea id="invitation-out"></textarea>
+
+        <h3>answer:</h3>
+        <textarea id="answer-in"></textarea>
+
+        <button id="accept-answer">Accept Answer</button>
+      </div>
+
+
+
+      <div id="answer" style="display: none;">
+        <h3>Invitation input:</h3>
+        <textarea id="invitation-in"></textarea>
+        <button id="create-answer">Accept</button>
+
+        <h3>Answer:</h3>
+        <textarea id="answer-out"></textarea>
+
+      </div>
+
+    </div>
+
+
+
+
+  </body>
+
+  <script type="module" src="./multiple.mjs"></script>
+  <script type="module" src="./state.mjs"></script>
+</html>
