@@ -1,4 +1,4 @@
-import { LocalConnection, RemoteConnection } from './state.mjs'
+import { Node } from './state.mjs'
 
 const $invitation = document.getElementById('invitation')
 const $answer = document.getElementById('answer')
@@ -13,19 +13,26 @@ const $answerIn = document.getElementById('answer-in')
 const $invitationIn = document.getElementById('invitation-in')
 const $answerOut = document.getElementById('answer-out')
 const $createAnswer = document.getElementById('create-answer')
-const $acceptAnswer = document.getElementById('accept-answer')
+const $acceptAnswers = document.getElementById('accept-answer')
 
 const $chatHistoryResults = document.getElementById('chat-history-results')
 const $newMessage = document.getElementById('new-message')
 const $sendMessage = document.getElementById('send-message')
 
+const $nodeId = document.getElementById('node-id')
+const $remoteNodeId = document.getElementById('remote-node-id')
 
 
-let localConnection, remoteConnection, channel
+
+
+const node = new Node(updateChat)
+window.node = node
+$nodeId.innerHTML = node.id
 
 $createInvitation.onclick = () => {
   $invitation.style.display = ''
-  createInvitation()
+
+  createInvitation($remoteNodeId.value)
 }
 
 $acceptInvitation.onclick = () => {
@@ -39,9 +46,8 @@ $createAnswer.onclick = () => {
   )
 }
 
-$acceptAnswer.onclick = () => {
-  acceptAnswer(
-    localConnection,
+$acceptAnswers.onclick = () => {
+  acceptAnswers(
     JSON.parse($answerIn.value),
   )
 }
@@ -65,40 +71,40 @@ function updateChat(input) {
 
 
 function sendMessage(input) {
-  channel.send(input)
+  node.emitEvent(input)
 }
 
 
 
-function createInvitation() {
-  localConnection = new LocalConnection(updateChat, noop, displayRemoteOfferingInfo)
-  channel = localConnection.eventsChannel
+async function createInvitation(remoteNodeId) {
+  const invitations = await node.collectNetworkInvitations(remoteNodeId)
+  displayRemoteOfferingInfo(invitations)
 }
 
-function displayRemoteOfferingInfo(description, candidate) {
-  $invitationOut.value = JSON.stringify({ description, candidate })
-}
-
-
-
-
-
-
-
-
-function acceptInvitation(invitation) {
-  remoteConnection = new RemoteConnection(invitation, updateChat, noop, displayRemoteAnswerInfo)
-  channel = remoteConnection.eventsChannel
-
-}
-
-function displayRemoteAnswerInfo(description, candidate) {
-    $answerOut.value = JSON.stringify({ description, candidate })
+function displayRemoteOfferingInfo(invitations) {
+  $invitationOut.value = JSON.stringify(invitations)
 }
 
 
-function acceptAnswer(connection, invitation) {
-  connection.acceptAnswer(invitation)
+
+
+
+
+
+
+async function acceptInvitation(invitations) {
+  const answers = await node.createAnswers(invitations)
+  displayRemoteAnswerInfo(answers)
+
+}
+
+function displayRemoteAnswerInfo(answers) {
+    $answerOut.value = JSON.stringify(answers)
+}
+
+
+function acceptAnswers(answers) {
+  node.acceptAnswers(answers)
 }
 
 function noop() {}

@@ -1,21 +1,162 @@
 const NODE_ID = `NODE-${Math.random()}`
 
-class Node {
-  constructor(connections=[], txs=[]) {
+
+export class Node {
+  constructor(onNetworkEvent) {
     this.id = NODE_ID
-    this.connections = connections
-    this.txs = txs
+    this.connections = {}
+    this.txs = []
+
+    this.onNetworkEvent = e => {
+      this.txs.push(e)
+      return onNetworkEvent(e)
+    }
+  }
+
+
+  emitEvent(event) {
+    Object.values(this.connections).map(connection => {
+      try {
+        connection.emitEvent(event)
+      } catch(e) {console.log(e)}
+    })
+  }
+
+  async collectNetworkInvitations(remoteNodeId) {
+    const pendingInvitations = Object.values(this.connections)
+      .map(connection => connection.requestInvitation(remoteNodeId))
+
+
+    return Promise.all([
+      ...pendingInvitations,
+      this.createInvitationAndLocalConnection(remoteNodeId)
+    ])
+  }
+
+  acceptAnswers(answers) {
+    answers.forEach(answer => {
+      if (answer.offerNodeId === this.id) {
+        const pendingConnection = this.connections[answer.answerNodeId]
+        pendingConnection.acceptAnswer(answer)
+      } else {
+        this.connections[answer.offerNodeId].sendAnswer(answer)
+      }
+    })
+  }
+
+  async createAnswers(networkInvitations) {
+    const pendingInvitations = networkInvitations.map(payload => new Promise(res => {
+      this.connections[payload.offerNodeId] = new RemoteConnection(
+        this.id,
+        payload,
+        this.onNetworkEvent,
+        this.joinChannelHandler.bind(this),
+        (description, candidate) => res({
+          description,
+          candidate,
+          offerNodeId: payload.offerNodeId,
+          answerNodeId: this.id,
+          type: 'Answer'
+        })
+      )
+    }))
+
+    return Promise.all(pendingInvitations)
+  }
+
+  // private
+  createInvitationAndLocalConnection(answerNodeId) {
+    return new Promise(res => {
+      this.connections[answerNodeId] = new LocalConnection(
+        this.id,
+        this.onNetworkEvent,
+        this.joinChannelHandler.bind(this), // TODO: do i need to bind this here?
+        (description, candidate) => res({
+          description,
+          candidate,
+          answerNodeId,
+          offerNodeId: this.id,
+          type: 'Invitation'
+        })
+      )
+    })
+  }
+
+  async joinChannelHandler(data, channel) {
+    const payload = JSON.parse(data)
+    console.log("JOIN PAYLOAD", payload)
+    if (payload.type === 'InvitationRequest') {
+      const invitation = await this.createInvitationAndLocalConnection(payload.answerNodeId)
+      channel.send(JSON.stringify({
+        description: invitation.description,
+        candidate: invitation.candidate,
+        type: 'InvitationResponse',
+        requestId: payload.requestId,
+        offerNodeId: this.id,
+        answerNodeId: payload.answerNodeId,
+      }))
+
+
+    } else if (payload.type === 'InvitationAnswer') {
+      console.log('receiving answer...', payload)
+      const pendingConnection = this.connections[payload.answerNodeId]
+      pendingConnection.acceptAnswer(payload)
+    }
   }
 }
 
+export class BaseConnection {
+  sendInvitationRequest(answerNodeId) {
+    const requestId = 'join-package-' + Math.random()
 
-export class LocalConnection {
-  constructor(onNetworkEvent, onNodeJoinEvent, onIceCandidate) {
+    this.joinChannel.send(JSON.stringify({
+      requestId,
+      answerNodeId,
+      offerNodeId: this.localId,
+      type: 'InvitationRequest',
+    }))
+
+    return requestId
+
+  }
+
+  async requestInvitation(nodeId) {
+    const requestId = this.sendInvitationRequest(nodeId)
+
+    return new Promise(resolve => {
+      const evtHandler = evt => {
+        const payload = JSON.parse(evt.data)
+        if (payload.type === 'InvitationResponse' && payload.requestId === requestId) {
+          resolve(payload)
+          this.joinChannel.removeEventListener('message', evtHandler)
+        }
+      }
+
+      this.joinChannel.addEventListener('message', evtHandler)
+    })
+  }
+
+  sendAnswer(answer) {
+    console.log('sending invitation answer...')
+    this.joinChannel.send(JSON.stringify({
+      ...answer,
+      type: 'InvitationAnswer',
+    }))
+  }
+
+  emitEvent(event) {
+      this.eventsChannel.send(JSON.stringify(event))
+  }
+}
+
+class LocalConnection extends BaseConnection {
+  constructor(nodeId, onNetworkEvent, joinChannelHandler, onIceCandidate) {
+    super()
     const connection = new RTCPeerConnection()
     const joinChannel = connection.createDataChannel('join')
     const eventsChannel = connection.createDataChannel('events')
 
-    this.local_id = NODE_ID
+    this.localId = nodeId
     this.connection = connection
     this.joinChannel = joinChannel
     this.eventsChannel = eventsChannel
@@ -24,8 +165,8 @@ export class LocalConnection {
     this.joinInfo = {}
     this.answer = {}
 
-    joinChannel.onmessage = evt => onNodeJoinEvent(evt.data, this)
-    eventsChannel.onmessage = evt => onNetworkEvent(evt.data)
+    joinChannel.addEventListener('message', evt => joinChannelHandler(evt.data, joinChannel))
+    eventsChannel.addEventListener('message', evt => onNetworkEvent(evt.data))
 
     connection.onconnectionstatechange = () => {
       console.log("local connection state change:", connection.connectionState)
@@ -73,11 +214,12 @@ export class LocalConnection {
   }
 }
 
-export class RemoteConnection {
-  constructor(invitation, onNetworkEvent, onNodeJoinEvent, onIceCandidate) {
+class RemoteConnection extends BaseConnection {
+  constructor(nodeId, invitation, onNetworkEvent, joinChannelHandler, onIceCandidate) {
+    super()
     const connection = new RTCPeerConnection()
 
-    this.local_id = NODE_ID
+    this.localId = nodeId
     this.connection = connection
     this.joinChannel = null
     this.eventsChannel = null
@@ -94,6 +236,7 @@ export class RemoteConnection {
     connection.onicecandidate = e => {
       console.log("remote candidate created")
       if (e.candidate) {
+        this.status = 'ACCEPTED'
         this.answer.candidate = e.candidate
         onIceCandidate(this.answer.description, this.answer.candidate)
       }
@@ -105,7 +248,7 @@ export class RemoteConnection {
 
       if (channel.label === 'join') {
         this.joinChannel = channel
-        channel.onmessage = evt => onNodeJoinEvent(evt.data)
+        channel.onmessage = evt => joinChannelHandler(evt.data, channel)
       } else if (channel.label === 'events') {
         this.eventsChannel = channel
         channel.onmessage = evt => onNetworkEvent(evt.data)
@@ -125,3 +268,6 @@ export class RemoteConnection {
       })
   }
 }
+
+
+
