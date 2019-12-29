@@ -1,0 +1,12 @@
+{
+  "name": "multiple",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "http-server ."
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "http-server": "^0.12.0"
+  }
+}

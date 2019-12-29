@@ -271,3 +271,25 @@ class RemoteConnection extends BaseConnection {
 
 
 
+// For Nodes A, B, C
+// A and B connect
+
+// >>>>>>>>>>>>> offline: C gives B their id <<<<<<<<<<<<<<
+
+// B creates an invitation using C's id
+  // B creates its own invitation + local connection
+  // B forwards the invitation request to A
+  // A creates a local connection + responds with an invitation
+  // B creates an invitation payload from A + its own invitation
+
+// >>>>>>>>>>>>> offline: B gives C the invitation payload <<<<<<<<<<<<<<
+
+// C creates a remote client for each invitation
+// C produces an answer payload for each client
+
+// >>>>>>>>>>>>> offline: C gives B the answer payload <<<<<<<<<<<<<<
+
+// B accepts the answer payload
+  // B accepts the C-B answer
+  // B forwards the C-A answer to A
+  // A accepts the C-A anwer
