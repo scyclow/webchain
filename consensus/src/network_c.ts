@@ -1,78 +1,66 @@
 
 
 
-type Connection = {
+type Peer = {
     localId: string
     connection: RTCPeerConnection
-    joinChannel: RTCDataChannel
-    eventsChannel: RTCDataChannel
+    channel: RTCDataChannel
     type: 'LOCAL' | 'REMOTE'
     status: 'AWAITING_ANSWER' | 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'AWAITING_CONFIRMATION'
     answer?: any
 }
 
-type TxEvent = any
+type Event<T, P> = {
+  type: T,
+  payload: P,
+}
 
-
-type Invitation = {
-  type: 'Invitation',
+type JoinPayload = {
   answerNodeId: string,
   offerNodeId: string,
   description: RTCSessionDescription,
   candidate: RTCIceCandidate,
 }
 
-type Answer = {
-  type: 'Answer',
-  answerNodeId: string,
-  offerNodeId: string,
-  description: RTCSessionDescription,
-  candidate: RTCIceCandidate,
-}
+type TxPayload = unknown
 
 
-type InvitationResponsePayload = {
-  type: 'InvitationResponse',
-  requestId: string,
-  answerNodeId: string,
-  offerNodeId: string,
-  description: RTCSessionDescription,
-  candidate: RTCIceCandidate,
-}
+type Invitation = { type: 'Invitation' } & JoinPayload
+type Answer = { type: 'Answer' } & JoinPayload
 
-type InvitationRequestPayload = {
-  type: 'InvitationRequest'
-  requestId: string
-  answerNodeId: string
-  offerNodeId: string
-}
-
-type InvitationAnswerPayload = {
-  type: 'InvitationAnswer'
-  answerNodeId: string
-  offerNodeId: string
-  description: RTCSessionDescription
-  candidate: RTCIceCandidate
-}
+type InvitationResponseEvent = Event<'InvitationResponse', JoinPayload & { requestId: string }>
+type InvitationRequestEvent = Event<'InvitationRequest', {  requestId: string, answerNodeId: string, offerNodeId: string}>
+type InvitationAnswerEvent = Event<'InvitationAnswer', JoinPayload>
+type TxConfirmationEvent = Event<'TxConfirmation', TxPayload>
 
 
-type InvitationEvent = InvitationRequestPayload | InvitationResponsePayload | InvitationAnswerPayload
+type InvitationEvent = InvitationRequestEvent | InvitationResponseEvent | InvitationAnswerEvent
+
+type NetworkEvent =
+  | InvitationResponseEvent
+  | InvitationRequestEvent
+  | InvitationAnswerEvent
+  | TxConfirmationEvent
+
 
 
 
 export class Node {
   id: string
-  connections: { [remoteNodeId: string]: Connection }
-  txs: Array<TxEvent>
-  onTx: (e: TxEvent) => unknown
+  peers: { [remoteNodeId: string]: Peer }
+  pendingJobs: { [requestId: string]: (payload: unknown) => unknown}
+  txs: Array<TxPayload>
+  onTx: (e: unknown) => unknown
 
   constructor(onTx: any) {
     this.id = `NODE-${Math.random()}`
-    this.connections = {}
+    this.peers = {}
     this.txs = []
+    this.pendingJobs = {}
 
-    this.onTx = e => {
-      this.txs.push(e)
+    this.onTx = (txPayload: unknown) => {
+      console.log('tx handler...............')
+      this.txs.push(txPayload)
       return onTx(this.txs)
     }
   }
@@ -80,8 +68,8 @@ export class Node {
   // Public
 
   collectNetworkInvitations(remoteNodeId: string) {
-    const pendingInvitationsFromNetwork = Object.values(this.connections)
-      .map(connection => this.forwardInvitationRequest(connection, remoteNodeId))
+    const pendingInvitationsFromNetwork = Object.values(this.peers)
+      .map(peer => this.forwardInvitationRequest(peer, remoteNodeId))
 
     const localConnectionInvitation = this.createLocalConnectionAndInvitation(remoteNodeId)
 
@@ -100,61 +88,76 @@ export class Node {
   acceptAnswers(answers: Array<Answer>) {
     answers.forEach(answer => {
       if (answer.offerNodeId === this.id) {
-        const pendingConnection = this.connections[answer.answerNodeId]
-        this.acceptAnswerForLocalConnection(pendingConnection, answer)
+        this.acceptAnswerForLocalConnection(answer)
       } else {
-        const pendingConnection = this.connections[answer.offerNodeId]
-        this.forwardAnswer(pendingConnection, answer)
+        const pendingPeer = this.peers[answer.offerNodeId]
+        this.forwardAnswer(pendingPeer, answer)
       }
     })
   }
 
-  postTxEvent(event: TxEvent) {
-    Object.values(this.connections).forEach(connection => {
+  postTxEvent(eventPayload: TxPayload) {
+    const event = {
+      payload: eventPayload,
+      type: 'TxConfirmation'
+    } as TxConfirmationEvent
+    Object.values(this.peers).forEach(peer => {
       try {
-        connection.eventsChannel.send(JSON.stringify(event))
+        this.sendMessage(peer.channel, event)
       } catch(e) {
         console.log(e)
       }
     })
-    this.onTx(event)
+    this.onTx(eventPayload)
   }
 
 
 
-  // Connections
+  // Peers
 
-  // Create local/remote connections with invitations/answers
+  // Create local/remote peers with invitations/answers
 
-  private joinChannelHandler(payload: InvitationEvent, channel: RTCDataChannel) {
-    console.log("JOIN PAYLOAD", payload)
+  private networkEventHandler(event: NetworkEvent, peerId: string) {
+    const channel = this.peers[peerId].channel
+    console.log('NETWORK EVENT:', event)
 
-    if (payload.type === 'InvitationRequest') {
-      this.respondToInvitationRequest(payload, channel)
+    switch (event.type) {
+      case 'InvitationRequest':
+        this.respondToInvitationRequest(event.payload, channel)
+        break
 
+      case 'InvitationAnswer':
+        this.acceptAnswerForLocalConnection(event.payload)
+        break
 
-    } else if (payload.type === 'InvitationAnswer') {
-      this.acceptAnswerForLocalConnection(this.connections[payload.answerNodeId], payload)
+      case 'InvitationResponse':
+        this.resolveInvitationResponse(event.payload)
+        break
+
+      case 'TxConfirmation':
+        this.onTx(event.payload)
+        break
+
+      default:
+        console.log('unhandled event:', event)
+        break
     }
   }
 
   private createLocalConnectionAndInvitation(answerNodeId: string): Promise<Invitation> {
     const connection = new RTCPeerConnection()
-    const joinChannel = connection.createDataChannel('join')
-    const eventsChannel = connection.createDataChannel('events')
+    const channel = connection.createDataChannel('events')
 
-    this.connections[answerNodeId] = {
+    this.peers[answerNodeId] = {
       localId: this.id,
       connection,
-      joinChannel,
-      eventsChannel,
+      channel,
       type: 'LOCAL',
       status: 'AWAITING_ANSWER'
     }
 
 
-    joinChannel.addEventListener('message', evt => this.joinChannelHandler(JSON.parse(evt.data), joinChannel))
-    eventsChannel.addEventListener('message', evt => this.onTx(JSON.parse(evt.data)))
+    channel.addEventListener('message', evt => this.networkEventHandler(JSON.parse(evt.data), answerNodeId))
 
     connection.onconnectionstatechange = () => {
       console.log("local connection state change:", connection.connectionState)
@@ -189,28 +192,20 @@ export class Node {
   private createRemoteConnectionAndAnswer(invitation: Invitation): Promise<Answer> {
     const connection = new RTCPeerConnection()
 
-    const remoteConnection: Connection = this.connections[invitation.offerNodeId] = {
+    const peer: Peer = this.peers[invitation.offerNodeId] = {
       localId: this.id,
       type: 'REMOTE',
       status: 'AWAITING_CONFIRMATION',
       connection,
-      joinChannel: null as any,
-      eventsChannel: null as any,
+      channel: null as any,
     }
-
 
     connection.ondatachannel = e => {
       console.log('remote ondatachannel')
       const channel = e.channel
+      peer.channel = channel
 
-      if (channel.label === 'join') {
-        remoteConnection.joinChannel = channel
-        channel.onmessage = evt => this.joinChannelHandler(evt.data, channel)
-      } else if (channel.label === 'events') {
-        remoteConnection.eventsChannel = channel
-        channel.onmessage = evt => this.onTx(JSON.parse(evt.data))
-
-      }
+      channel.onmessage = evt => this.networkEventHandler(JSON.parse(evt.data), invitation.offerNodeId)
     }
 
     connection.onconnectionstatechange = () => {
@@ -225,7 +220,7 @@ export class Node {
       connection.onicecandidate = e => {
         console.log("remote candidate created")
         if (e.candidate) {
-          remoteConnection.status = 'ACCEPTED'
+          peer.status = 'ACCEPTED'
           const answer: Answer = {
             description: connection.localDescription as RTCSessionDescription,
             candidate: e.candidate,
@@ -249,72 +244,87 @@ export class Node {
 
 
   // request an invitation from a connection on behalf of the joining node
-  private forwardInvitationRequest(connection: Connection, answerNodeId: string) {
+  private forwardInvitationRequest(peer: Peer, answerNodeId: string) {
     const requestId = 'join-package-' + Math.random()
+    const pending = new Promise(res => this.pendingJobs[requestId] = res)
 
-    connection.joinChannel.send(JSON.stringify({
-      requestId,
-      answerNodeId,
-      offerNodeId: connection.localId,
+    this.sendMessage(peer.channel, {
       type: 'InvitationRequest',
-    }))
-
-    return new Promise(resolve => {
-      const evtHandler = (evt: MessageEvent) => {
-        const payload = JSON.parse(evt.data)
-        if (payload.type === 'InvitationResponse' && payload.requestId === requestId) {
-          const invitation: Invitation = {
-            type: 'Invitation',
-            answerNodeId: payload.answerNodeId,
-            offerNodeId: payload.offerNodeId,
-            description: payload.description,
-            candidate: payload.candidate,
-
-          }
-          resolve(invitation)
-          connection.joinChannel.removeEventListener('message', evtHandler)
-        }
+      payload: {
+        requestId,
+        answerNodeId,
+        offerNodeId: peer.localId
       }
+    })
 
-      connection.joinChannel.addEventListener('message', evtHandler)
+    return pending
+  }
+
+  private resolveInvitationResponse(payload: InvitationResponseEvent['payload']) {
+    const resolve = this.pendingJobs[payload.requestId]
+    if (!resolve) return
+    else delete this.pendingJobs[payload.requestId]
+
+    const invitation: Invitation = {
+      type: 'Invitation',
+      answerNodeId: payload.answerNodeId,
+      offerNodeId: payload.offerNodeId,
+      description: payload.description,
+      candidate: payload.candidate,
+
+    }
+    resolve(invitation)
+  }
+
+
+  private async respondToInvitationRequest(payload: InvitationRequestEvent['payload'], channel: RTCDataChannel) {
+    const invitation = await this.createLocalConnectionAndInvitation(payload.answerNodeId)
+    this.sendMessage(channel, {
+      type: 'InvitationResponse',
+      payload: {
+        description: invitation.description,
+        candidate: invitation.candidate,
+        requestId: payload.requestId,
+        offerNodeId: this.id,
+        answerNodeId: payload.answerNodeId,
+      }
     })
   }
 
-  private async respondToInvitationRequest(payload: InvitationRequestPayload, channel: RTCDataChannel) {
-    const invitation = await this.createLocalConnectionAndInvitation(payload.answerNodeId)
-    channel.send(JSON.stringify({
-      description: invitation.description,
-      candidate: invitation.candidate,
-      type: 'InvitationResponse',
-      requestId: payload.requestId,
-      offerNodeId: this.id,
-      answerNodeId: payload.answerNodeId,
-    }))
-  }
-
-  private async acceptAnswerForLocalConnection(connection: Connection, { description, candidate }: Answer | InvitationAnswerPayload) {
+  private async acceptAnswerForLocalConnection({ description, candidate, answerNodeId }: Answer | InvitationAnswerEvent['payload']) {
     console.log('receiving answer...', { description, candidate })
+    const peer = this.peers[answerNodeId]
 
-    if (connection.status !== 'AWAITING_ANSWER') return
-    connection.status = 'PENDING'
+    if (peer.status !== 'AWAITING_ANSWER') return
+    peer.status = 'PENDING'
 
     try {
-      await connection.connection.setRemoteDescription(description)
-      await connection.connection.addIceCandidate(candidate)
-      connection.status = 'ACCEPTED'
+      await peer.connection.setRemoteDescription(description)
+      await peer.connection.addIceCandidate(candidate)
+      peer.status = 'ACCEPTED'
       console.log('answer accepted')
     } catch (e) {
-        connection.status = 'REJECTED'
+        peer.status = 'REJECTED'
         console.log(e)
     }
   }
 
-  private forwardAnswer(connection: Connection, answer: Answer) {
+  private forwardAnswer(peer: Peer, answer: Answer) {
     console.log('sending invitation answer...')
-    connection.joinChannel.send(JSON.stringify({
-      ...answer,
+    this.sendMessage(peer.channel, {
       type: 'InvitationAnswer',
-    }))
+      payload: {
+        answerNodeId: answer.answerNodeId,
+        offerNodeId: answer.offerNodeId,
+        description: answer.description,
+        candidate: answer.candidate,
+      }
+    })
+
+  }
+
+  private sendMessage(channel: RTCDataChannel, event: NetworkEvent) {
+    channel.send(JSON.stringify(event))
   }
 }
 

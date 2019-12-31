@@ -23,6 +23,53 @@ My Tight 15:
       - I work at a company that built its own blockchain, but spend most of my time on the smart contract layer
       - Blockchains are really really complicated, so I had to cut a lot of corners to get something I could explain in 15 minutes
 
+  - 2 minutes
+    - Basic WebRTC example
+      - create local connection
+      - offering/candidate
+      - create remote connection
+      - answer/candidate
+      - accept answer
+      - send data
+
+  - 2 minutes
+    - basic multi-connection node
+      - A + B connect with previous step
+      - >> offline: C gives B their id
+
+      - B creates an invitation collection using C's id (collectNetworkInvitations)
+        - B creates its own invitation + local connection (createLocalConnectionAndInvitation)
+        - B forwards the invitation request to A (forwardInvitationRequest)
+        - A creates a local connection + responds with an invitation (respondToInvitationRequest)
+        - B creates an invitation payload from A + its own invitation
+
+      - >> offline: B gives C the invitation payload
+
+      - C creates a remote client for each invitation (createAnswers)
+      - C produces an answer payload for each client
+
+      - >> offline: C gives B the answer payload
+
+      - B accepts the answer payload (acceptAnswers)
+        - B accepts the C-B answer (acceptAnswerForLocalConnection)
+        - B forwards the C-A answer to A (forwardAnswer)
+        - A accepts the C-A anwer (acceptAnswerForLocalConnection)
+
+  - 3 min
+    - Now we have something vaguely resembling a blockchain
+    - consensus
+
+  - 1 min
+    - Not super useful in itself, but if you're used to using redux or doing event sourcing, you'll notice that these entwork txs look familiar. They're the same thing as redux actions!
+    - This system quickly becomes useful if we just shove all of these txs through a reducer
+
+  - 2 min
+    - that's more or less it for the demo. to reiterate, i glossed over a lot of important stuff, so if i glossed over something you were interested in, the my apologies
+    - two important things i glossed over:
+      - no concept of identities on this network. anyone can do anything. we need to add a public/private cryptography layer on here so nodes can sign transactions
+      - consensus algorithm here is very crude. no good way to choose leader, leader can starve network of transactions, because of last point, leader can lie.
+        - IMO, nothing I've done here today (aside from the WebRTC) is cutting edge. This BFT algo has been around for a while. The real contribution of bitcoin was PoW which lets you order/validate txs in an open network
+
 
 Why?
   Blockchains are fucking cool

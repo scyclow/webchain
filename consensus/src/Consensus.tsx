@@ -1,8 +1,8 @@
 import React, {useState, useEffect} from 'react';
-import {Node} from './network_m'
+import {Node} from './network_c'
 
 
-const Multiple = () => {
+const Consensus = () => {
   const [remoteNodeId, setRemoteNodeId] = useState<string>('')
   const [formState, setFormState] = useState<'' | 'create' | 'accept'>('')
   const [networkInvitations, setNetworkInvitations] = useState<string>('')
@@ -21,7 +21,7 @@ const Multiple = () => {
   }, [])
 
   return (
-    <div className="Multiple">
+    <div className="Consensus">
       <h1>{node?.id}</h1>
 
       {node && !!Object.keys(node.peers).length &&
@@ -87,4 +87,4 @@ const Multiple = () => {
   );
 }
 
-export default Multiple;
+export default Consensus;
