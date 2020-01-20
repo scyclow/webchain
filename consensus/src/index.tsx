@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import './index.css';
-import Multiple from './Multiple';
+import Consensus from './Consensus';
 
-ReactDOM.render(<Multiple />, document.getElementById('root'));
+ReactDOM.render(<Consensus />, document.getElementById('root'));

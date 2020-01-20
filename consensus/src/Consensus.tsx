@@ -1,5 +1,5 @@
 import React, {useState, useEffect} from 'react';
-import {Node} from './network_c'
+import {Node, Block} from './network_c'
 
 
 const Consensus = () => {
@@ -10,11 +10,14 @@ const Consensus = () => {
   const [answers, setAnswers] = useState<string>('')
   const [acceptingAnswers, setAcceptingAnswers] = useState<string>('')
   const [node, setNode] = useState<Node | null>(null)
-  const [log, setLog] = useState<Array<any>>([])
+  const [txs, setTxs] = useState<Array<any>>([])
   const [txInput, setTxInput] = useState<string>('')
 
   useEffect(() => {
-    const node = new Node(setLog)
+    const node = new Node((blocks: Array<Block>) => {
+      console.log('new block: ', blocks)
+      setTxs(blocks.map(block => block.txs).flat())
+    })
     setNode(node)
     // @ts-ignore
     window.node = node
@@ -23,11 +26,12 @@ const Consensus = () => {
   return (
     <div className="Consensus">
       <h1>{node?.id}</h1>
+      <button onClick={() => node?.claimLeadership()}>Claim Leadership</button>
 
       {node && !!Object.keys(node.peers).length &&
         <div>
           <ol>
-            {log.map(item => <li key={item}>{JSON.stringify(item)}</li>)}
+            {txs.map(tx => <li key={tx.metadata.id}>{JSON.stringify(tx)}</li>)}
           </ol>
           <input value={txInput} onChange={e => setTxInput(e.target.value)} />
           <button onClick={() => {

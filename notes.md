@@ -12,8 +12,8 @@ My Tight 15:
     - But first, what exactly is a blockchain?
       - MW actually has a definition: "a digital database containing information ... that can be simultaneously used and shared within a large decentralized, publicly accessible network"
       - Actually isn't a terrible deifnition, but if that sounds vague as hell, it's because it is vague as hell. No one can actually agree on a definition that's more specific than this.
-      - IMO there are some definitive traits of blockchains that this definition leaves out (such as BFT, tx ordering)
-      - So for the purposes of this demo, and because i have the mic, we're going to define a blockchain as: a network of nodes (web browsers) with BFT that can come to a consensus on the order of events
+      - IMO there are some definitive traits of blockchains that this definition leaves out (such as BFT (and we'll get to what BFT is later), tx ordering)
+      - So for the purposes of this demo, and because i have the mic, we're going to define a blockchain as: a network of nodes (web browsers) with BFT (which we'll talk about later) that can come to a consensus on the order of events
       - the digital db part is really a result of agreeing on txs and their order
       - if you're curious where the blocks or the chains come in, then that's a valid concern, but don't worry about it for now
 
@@ -55,9 +55,47 @@ My Tight 15:
         - B forwards the C-A answer to A (forwardAnswer)
         - A accepts the C-A anwer (acceptAnswerForLocalConnection)
 
+    - So agian, to reiterate: this glosses over enough details that it isn't very useful in itself. However, it is kinda sorta CFT
+
   - 3 min
     - Now we have something vaguely resembling a blockchain
-    - consensus
+    - So now the natural question is: okay great, we have multiple people running these nodes in a decentralized way, and if one of the nodes goes down, we can coordinate to fix the system. Awesome. But what if the node operators have conflicting incentives on the order of the transactions, or even the transactions themselves. This is what's called the double spending problem.
+      - If Alice has $5, and submits the following two txs to the network at the same time:
+        { event: "transfer", signer: "alice", recipient: "bob", amount: 5 },
+        { event: "transfer", signer: "alice", recipient: "charlie", amount: 5 }
+        then one of them will succeed and one will fail. In a CFT system, you can figure it out pretty esily. Just ask alice which one came first.
+      - But what if alice is malicious, and submits txs { 1, 2 } to Bob, and { 2, 1 } to Charlie? When Charlie askes Alice and Bob what's up, they'll give totally different answers, and he won't know what the hell is going on. So then what?
+    - To protect against malicious nodes, we need what's called BFT. It's called BFT because of the Byzyntine generals problem, which I won't get into. If you're interested you should google it. But oherwise, if you hear BFT just think that it's a protocol that's tolerant against a certain number of malicious nodes
+
+    - PBFT consensus protocol
+      - Node A claims leadership, tells B, C, D
+      - Event: ClaimLeadership
+
+      - Round 0
+        - txs are broadcast to A, B, C, D
+        - A, B, C, D put txs in pending queue
+      - Event: ProposeTx
+
+      - Round 1
+        - A submits a block of txs to B, C, D
+      - Event PreprepareTxBlock
+
+      - Round 2
+        - B tells A, C, D if it votes to commit
+        - B commits
+
+        - C tells A, B, D if it votes to commit
+        - C commits
+
+        - D tells A, B, C if it votes to commit
+        - D commits
+      - Event: PrepareTxBlock
+
+      - Round 3
+        - When each node gets quarum of prepare votes, they commit
+      - Event: CommitTxBlock
+
+
 
   - 1 min
     - Not super useful in itself, but if you're used to using redux or doing event sourcing, you'll notice that these entwork txs look familiar. They're the same thing as redux actions!
@@ -69,6 +107,7 @@ My Tight 15:
       - no concept of identities on this network. anyone can do anything. we need to add a public/private cryptography layer on here so nodes can sign transactions
       - consensus algorithm here is very crude. no good way to choose leader, leader can starve network of transactions, because of last point, leader can lie.
         - IMO, nothing I've done here today (aside from the WebRTC) is cutting edge. This BFT algo has been around for a while. The real contribution of bitcoin was PoW which lets you order/validate txs in an open network
+
 
 
 Why?

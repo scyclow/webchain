@@ -2,7 +2,7 @@
 
 
 type Peer = {
-    localId: string
+    id: string
     connection: RTCPeerConnection
     channel: RTCDataChannel
     type: 'LOCAL' | 'REMOTE'
@@ -149,7 +149,7 @@ export class Node {
     const channel = connection.createDataChannel('events')
 
     this.peers[answerNodeId] = {
-      localId: this.id,
+      id: answerNodeId,
       connection,
       channel,
       type: 'LOCAL',
@@ -193,7 +193,7 @@ export class Node {
     const connection = new RTCPeerConnection()
 
     const peer: Peer = this.peers[invitation.offerNodeId] = {
-      localId: this.id,
+      id: invitation.offerNodeId,
       type: 'REMOTE',
       status: 'AWAITING_CONFIRMATION',
       connection,
@@ -253,7 +253,7 @@ export class Node {
       payload: {
         requestId,
         answerNodeId,
-        offerNodeId: peer.localId
+        offerNodeId: this.id
       }
     })
 
@@ -351,3 +351,5 @@ export class Node {
   // B accepts the C-B answer (acceptAnswerForLocalConnection)
   // B forwards the C-A answer to A (forwardAnswer)
   // A accepts the C-A anwer (acceptAnswerForLocalConnection)
+
+
